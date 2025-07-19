@@ -57,6 +57,8 @@ type Counter interface {
 	Add(value float64)
 	// With returns a Counter with additional tags
 	With(tags Tags) Counter
+	// Value returns the current counter value
+	Value() uint64
 }
 
 // Gauge represents a current point-in-time measurement
@@ -72,6 +74,17 @@ type Gauge interface {
 	Dec()
 	// With returns a Gauge with additional tags
 	With(tags Tags) Gauge
+	// Value returns the current gauge value
+	Value() int64
+}
+
+// HistogramSnapshot represents the current state of a histogram
+type HistogramSnapshot struct {
+	Count   uint64
+	Sum     uint64
+	Min     uint64
+	Max     uint64
+	Buckets []uint64
 }
 
 // Histogram represents a statistical distribution of values
@@ -81,6 +94,8 @@ type Histogram interface {
 	Observe(value float64)
 	// With returns a Histogram with additional tags
 	With(tags Tags) Histogram
+	// Snapshot returns the current histogram statistics
+	Snapshot() HistogramSnapshot
 }
 
 // Timer is a specialized metric for measuring durations
@@ -94,6 +109,8 @@ type Timer interface {
 	Time(fn func()) time.Duration
 	// With returns a Timer with additional tags
 	With(tags Tags) Timer
+	// Snapshot returns the underlying histogram statistics
+	Snapshot() HistogramSnapshot
 }
 
 // Registry manages a collection of metrics

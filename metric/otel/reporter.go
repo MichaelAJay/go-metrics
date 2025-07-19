@@ -4,9 +4,7 @@ package otel
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"sync"
-	"unsafe"
 
 	metricpkg "github.com/MichaelAJay/go-metrics/metric"
 	"go.opentelemetry.io/otel"
@@ -135,49 +133,13 @@ func (r *Reporter) Report(registry metricpkg.Registry) error {
 	return nil
 }
 
-// getCounterValue uses reflection to access the internal counter value
-// This is a bit of a hack, but necessary since our interfaces don't expose internal values
-func getCounterValue(counter metricpkg.Counter) int64 {
-	// Use reflection to access the embedded counterImpl struct
-	val := reflect.ValueOf(counter).Elem()
-
-	// Find the 'value' field that contains our counter
-	valueField := val.FieldByName("value")
-
-	// If we can't find the field, return 0
-	if !valueField.IsValid() {
-		return 0
-	}
-
-	// Get the actual value
-	ptr := unsafe.Pointer(valueField.UnsafeAddr())
-	return int64(*(*uint64)(ptr))
-}
-
-// getGaugeValue uses reflection to access the internal gauge value
-func getGaugeValue(gauge metricpkg.Gauge) int64 {
-	// Use reflection to access the embedded gaugeImpl struct
-	val := reflect.ValueOf(gauge).Elem()
-
-	// Find the 'value' field
-	valueField := val.FieldByName("value")
-
-	// If we can't find the field, return 0
-	if !valueField.IsValid() {
-		return 0
-	}
-
-	// Get the actual value
-	ptr := unsafe.Pointer(valueField.UnsafeAddr())
-	return *(*int64)(ptr)
-}
 
 func (r *Reporter) reportCounter(name string, counter metricpkg.Counter) {
 	// Create or get the counter
 	otelCounter := r.getOrCreateCounter(name, counter.Description())
 
-	// Get the value from our counter (using reflection)
-	value := getCounterValue(counter)
+	// Get the value from our counter using the safe Value() method
+	value := int64(counter.Value())
 
 	// Record the value - convert []attribute.KeyValue to an option list
 	// In OpenTelemetry, options need to be passed as variadic parameters
@@ -198,8 +160,8 @@ func (r *Reporter) reportGauge(name string, attrs []attribute.KeyValue, gauge me
 		// Register a callback for this gauge
 		callback, err := r.meter.RegisterCallback(
 			func(_ context.Context, o otelmetric.Observer) error {
-				// Get current value
-				value := getGaugeValue(metricGauge)
+				// Get current value using the safe Value() method
+				value := metricGauge.Value()
 				// Report to OpenTelemetry
 				o.ObserveInt64(otelGauge, value)
 				return nil
@@ -217,29 +179,34 @@ func (r *Reporter) reportHistogram(name string, _ []attribute.KeyValue, histogra
 	// Create or get the histogram
 	otelHistogram := r.getOrCreateHistogram(name, histogram.Description())
 
-	// Since we can't easily get all values from our histogram implementation,
-	// this is more of a placeholder that would ideally record the distribution
-	// For now, we'll just demonstrate recording a single value
+	// Get the current histogram snapshot using the safe Snapshot() method
+	snapshot := histogram.Snapshot()
 
-	// In a real implementation, we'd capture distribution data like:
-	// - Sum of all values
-	// - Count of observations
-	// - Min/Max values
-	// - Bucket counts
-
-	// For demonstration, record a dummy value
-	otelHistogram.Record(r.ctx, 0)
+	// Record observations based on the histogram buckets
+	// This is a simplified approach - in a full implementation, we'd record
+	// individual observations or use OpenTelemetry's histogram directly
+	if snapshot.Count > 0 {
+		// Record the average value as a representative sample
+		avgValue := float64(snapshot.Sum) / float64(snapshot.Count)
+		otelHistogram.Record(r.ctx, avgValue)
+	}
 }
 
 func (r *Reporter) reportTimer(name string, _ []attribute.KeyValue, timer metricpkg.Timer) {
 	// Create a histogram for the timer
 	otelHistogram := r.getOrCreateHistogram(name+"_seconds", timer.Description())
 
-	// Similar to the histogram case, we'd ideally extract the actual timing data
-	// In a real implementation, we'd access the internal histogram
+	// Get the current timer snapshot using the safe Snapshot() method
+	snapshot := timer.Snapshot()
 
-	// For demonstration, record a dummy value
-	otelHistogram.Record(r.ctx, 0)
+	// Record observations based on the timer's histogram data
+	// Convert from nanoseconds to seconds for better OpenTelemetry compatibility
+	if snapshot.Count > 0 {
+		// Record the average duration in seconds
+		avgDurationNanos := float64(snapshot.Sum) / float64(snapshot.Count)
+		avgDurationSeconds := avgDurationNanos / 1e9 // Convert nanoseconds to seconds
+		otelHistogram.Record(r.ctx, avgDurationSeconds)
+	}
 }
 
 func (r *Reporter) getOrCreateCounter(name, help string) otelmetric.Int64Counter {

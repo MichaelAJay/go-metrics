@@ -97,6 +97,10 @@ func (c *counterImpl) With(tags Tags) Counter {
 	}
 }
 
+func (c *counterImpl) Value() uint64 {
+	return atomic.LoadUint64(&c.value)
+}
+
 // gaugeImpl implements the Gauge interface
 type gaugeImpl struct {
 	baseMetric
@@ -143,6 +147,10 @@ func (g *gaugeImpl) With(tags Tags) Gauge {
 	}
 }
 
+func (g *gaugeImpl) Value() int64 {
+	return atomic.LoadInt64(&g.value)
+}
+
 // histogramImpl implements the Histogram interface
 type histogramImpl struct {
 	baseMetric
@@ -182,12 +190,42 @@ func (h *histogramImpl) Observe(value float64) {
 	bucket := min(9, int(value/10))
 	atomic.AddUint64(&h.buckets[bucket], 1)
 
-	// Update min/max (simplified - not thread-safe without more complex locking)
-	if v < atomic.LoadUint64(&h.min) || atomic.LoadUint64(&h.min) == 0 {
-		atomic.StoreUint64(&h.min, v)
+	// Update min/max using compare-and-swap to avoid race conditions
+	h.updateMin(v)
+	h.updateMax(v)
+}
+
+// updateMin safely updates the minimum value using compare-and-swap
+func (h *histogramImpl) updateMin(v uint64) {
+	for {
+		current := atomic.LoadUint64(&h.min)
+		// If current is 0 (uninitialized) or v is smaller, update it
+		if current == 0 || v < current {
+			if atomic.CompareAndSwapUint64(&h.min, current, v) {
+				break
+			}
+			// If CAS failed, another goroutine updated it, try again
+		} else {
+			// v is not smaller than current, no update needed
+			break
+		}
 	}
-	if v > atomic.LoadUint64(&h.max) {
-		atomic.StoreUint64(&h.max, v)
+}
+
+// updateMax safely updates the maximum value using compare-and-swap
+func (h *histogramImpl) updateMax(v uint64) {
+	for {
+		current := atomic.LoadUint64(&h.max)
+		// If v is larger than current, update it
+		if v > current {
+			if atomic.CompareAndSwapUint64(&h.max, current, v) {
+				break
+			}
+			// If CAS failed, another goroutine updated it, try again
+		} else {
+			// v is not larger than current, no update needed
+			break
+		}
 	}
 }
 
@@ -201,6 +239,22 @@ func (h *histogramImpl) With(tags Tags) Histogram {
 			tags:        copyTags(h.tags, tags),
 		},
 		buckets: make([]uint64, len(h.buckets)),
+	}
+}
+
+func (h *histogramImpl) Snapshot() HistogramSnapshot {
+	// Create a copy of buckets to avoid concurrent modification
+	buckets := make([]uint64, len(h.buckets))
+	for i := range h.buckets {
+		buckets[i] = atomic.LoadUint64(&h.buckets[i])
+	}
+	
+	return HistogramSnapshot{
+		Count:   atomic.LoadUint64(&h.count),
+		Sum:     atomic.LoadUint64(&h.sum),
+		Min:     atomic.LoadUint64(&h.min),
+		Max:     atomic.LoadUint64(&h.max),
+		Buckets: buckets,
 	}
 }
 
@@ -251,6 +305,10 @@ func (t *timerImpl) With(tags Tags) Timer {
 	return &timerImpl{
 		histogram: t.histogram.With(tags),
 	}
+}
+
+func (t *timerImpl) Snapshot() HistogramSnapshot {
+	return t.histogram.Snapshot()
 }
 
 // Helper functions
