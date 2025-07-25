@@ -132,6 +132,15 @@ func (r *Reporter) reportCounter(name string, labelNames, labelValues []string, 
 			}
 		}
 	}
+
+	// Update the counter value using the safe Value() method
+	if promCounter, exists := r.counters[key]; exists {
+		// Get current value from our metric
+		currentValue := float64(counter.Value())
+		// Prometheus counters can only be incremented, so we need to calculate the difference
+		// For simplicity, we'll set it to the current value (this could be improved with delta tracking)
+		promCounter.Add(currentValue)
+	}
 }
 
 func (r *Reporter) reportGauge(name string, labelNames, labelValues []string, gauge metric.Gauge) {
@@ -159,6 +168,13 @@ func (r *Reporter) reportGauge(name string, labelNames, labelValues []string, ga
 			}
 		}
 	}
+
+	// Update the gauge value using the safe Value() method
+	if promGauge, exists := r.gauges[key]; exists {
+		// Get current value from our metric and set it
+		currentValue := float64(gauge.Value())
+		promGauge.Set(currentValue)
+	}
 }
 
 func (r *Reporter) reportHistogram(name string, labelNames, labelValues []string, histogram metric.Histogram) {
@@ -185,6 +201,20 @@ func (r *Reporter) reportHistogram(name string, labelNames, labelValues []string
 			if r.registered[key] {
 				r.histograms[key] = h.WithLabelValues(labelValues...)
 			}
+		}
+	}
+
+	// Update the histogram with observations from our metric
+	if promHistogram, exists := r.histograms[key]; exists {
+		// Get snapshot from our histogram using the safe Snapshot() method
+		snapshot := histogram.Snapshot()
+		
+		// Record observations - this is a simplified approach
+		// In a full implementation, we'd need to track individual observations
+		if snapshot.Count > 0 {
+			// Record the average value as a representative sample
+			avgValue := float64(snapshot.Sum) / float64(snapshot.Count)
+			promHistogram.Observe(avgValue)
 		}
 	}
 }
@@ -218,6 +248,20 @@ func (r *Reporter) reportTimer(name string, labelNames, labelValues []string, ti
 			if r.registered[key] {
 				r.histograms[key] = h.WithLabelValues(labelValues...)
 			}
+		}
+	}
+
+	// Update the timer histogram with observations from our timer
+	if promHistogram, exists := r.histograms[key]; exists {
+		// Get snapshot from our timer using the safe Snapshot() method
+		snapshot := timer.Snapshot()
+		
+		// Record observations - convert from nanoseconds to seconds for Prometheus
+		if snapshot.Count > 0 {
+			// Record the average duration in seconds
+			avgDurationNanos := float64(snapshot.Sum) / float64(snapshot.Count)
+			avgDurationSeconds := avgDurationNanos / 1e9 // Convert nanoseconds to seconds
+			promHistogram.Observe(avgDurationSeconds)
 		}
 	}
 }

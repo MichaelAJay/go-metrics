@@ -6,6 +6,7 @@ A flexible, high-performance metrics collection library for Go applications that
 
 - **Multiple metric types**: Counters, Gauges, Histograms, and Timers
 - **Tagging/labeling system**: Add dimensions to metrics with key-value tags
+- **Operational metrics**: High-level convenience API for error tracking and operation timing (`operational` package)
 - **Multiple backend support**:
   - Prometheus integration
   - OpenTelemetry compatibility
@@ -15,6 +16,7 @@ A flexible, high-performance metrics collection library for Go applications that
   - Thread-safe design for concurrent access
 - **Context propagation**: Integration with Go context for tracing
 - **Host/container metadata**: Automatic enrichment with service and environment information
+- **Testing support**: Comprehensive mocks for unit testing
 
 ## Installation
 
