@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/MichaelAJay/go-metrics"
+	"github.com/MichaelAJay/go-metrics/metric"
 )
 
 // OperationalMetrics provides high-level operational metrics functionality
@@ -28,24 +28,24 @@ type OperationalMetrics interface {
 
 // operationalMetrics implements the OperationalMetrics interface
 type operationalMetrics struct {
-	registry metrics.Registry
+	registry metric.Registry
 	
 	// Cached metric instances for performance
-	errorCounters     map[string]metrics.Counter
-	operationTimers   map[string]metrics.Timer
-	operationCounters map[string]metrics.Counter
+	errorCounters     map[string]metric.Counter
+	operationTimers   map[string]metric.Timer
+	operationCounters map[string]metric.Counter
 	
 	// Mutex for thread-safe metric caching
 	mu sync.RWMutex
 }
 
 // New creates a new OperationalMetrics instance
-func New(registry metrics.Registry) OperationalMetrics {
+func New(registry metric.Registry) OperationalMetrics {
 	return &operationalMetrics{
 		registry:          registry,
-		errorCounters:     make(map[string]metrics.Counter),
-		operationTimers:   make(map[string]metrics.Timer),
-		operationCounters: make(map[string]metrics.Counter),
+		errorCounters:     make(map[string]metric.Counter),
+		operationTimers:   make(map[string]metric.Timer),
+		operationCounters: make(map[string]metric.Counter),
 	}
 }
 
@@ -68,7 +68,7 @@ func (om *operationalMetrics) RecordOperation(operation, status string, duration
 }
 
 // getOrCreateErrorCounter creates or retrieves a cached error counter
-func (om *operationalMetrics) getOrCreateErrorCounter(operation, errorType, errorCategory string) metrics.Counter {
+func (om *operationalMetrics) getOrCreateErrorCounter(operation, errorType, errorCategory string) metric.Counter {
 	// Create a unique key for this error counter
 	key := fmt.Sprintf("error:%s:%s:%s", operation, errorType, errorCategory)
 	
@@ -91,11 +91,11 @@ func (om *operationalMetrics) getOrCreateErrorCounter(operation, errorType, erro
 	
 	// Create the counter with appropriate name and tags
 	metricName := fmt.Sprintf("%s_errors_total", operation)
-	counter := om.registry.Counter(metrics.Options{
+	counter := om.registry.Counter(metric.Options{
 		Name:        metricName,
 		Description: fmt.Sprintf("Total number of errors for %s operation", operation),
 		Unit:        "count",
-		Tags: metrics.Tags{
+		Tags: metric.Tags{
 			"operation":      operation,
 			"error_type":     errorType,
 			"error_category": errorCategory,
@@ -108,7 +108,7 @@ func (om *operationalMetrics) getOrCreateErrorCounter(operation, errorType, erro
 }
 
 // getOrCreateOperationTimer creates or retrieves a cached operation timer
-func (om *operationalMetrics) getOrCreateOperationTimer(operation string) metrics.Timer {
+func (om *operationalMetrics) getOrCreateOperationTimer(operation string) metric.Timer {
 	key := fmt.Sprintf("timer:%s", operation)
 	
 	// Try to get from cache first
@@ -130,11 +130,11 @@ func (om *operationalMetrics) getOrCreateOperationTimer(operation string) metric
 	
 	// Create the timer
 	metricName := fmt.Sprintf("%s_duration", operation)
-	timer := om.registry.Timer(metrics.Options{
+	timer := om.registry.Timer(metric.Options{
 		Name:        metricName,
 		Description: fmt.Sprintf("Duration of %s operation", operation),
 		Unit:        "nanoseconds",
-		Tags: metrics.Tags{
+		Tags: metric.Tags{
 			"operation": operation,
 		},
 	})
@@ -145,7 +145,7 @@ func (om *operationalMetrics) getOrCreateOperationTimer(operation string) metric
 }
 
 // getOrCreateOperationCounter creates or retrieves a cached operation counter
-func (om *operationalMetrics) getOrCreateOperationCounter(operation, status string) metrics.Counter {
+func (om *operationalMetrics) getOrCreateOperationCounter(operation, status string) metric.Counter {
 	key := fmt.Sprintf("counter:%s:%s", operation, status)
 	
 	// Try to get from cache first
@@ -167,11 +167,11 @@ func (om *operationalMetrics) getOrCreateOperationCounter(operation, status stri
 	
 	// Create the counter
 	metricName := fmt.Sprintf("%s_total", operation)
-	counter := om.registry.Counter(metrics.Options{
+	counter := om.registry.Counter(metric.Options{
 		Name:        metricName,
 		Description: fmt.Sprintf("Total number of %s operations", operation),
 		Unit:        "count",
-		Tags: metrics.Tags{
+		Tags: metric.Tags{
 			"operation": operation,
 			"status":    status,
 		},

@@ -4,6 +4,7 @@ package metric
 
 import (
 	"context"
+	"fmt"
 	"time"
 )
 
@@ -24,6 +25,128 @@ const (
 // Tags represents a map of key-value pairs associated with a metric
 type Tags map[string]string
 
+// TagValidationConfig contains configuration for tag validation
+type TagValidationConfig struct {
+	// MaxKeys is the maximum number of tags allowed per metric
+	MaxKeys int
+	// MaxKeyLength is the maximum length of a tag key
+	MaxKeyLength int
+	// MaxValueLength is the maximum length of a tag value
+	MaxValueLength int
+	// MaxCardinality is the maximum number of unique tag combinations per metric name
+	MaxCardinality int
+	// DisallowedKeys is a list of tag keys that are not allowed
+	DisallowedKeys []string
+}
+
+// DefaultTagValidationConfig returns a sensible default tag validation configuration
+func DefaultTagValidationConfig() TagValidationConfig {
+	return TagValidationConfig{
+		MaxKeys:         10,
+		MaxKeyLength:    100,
+		MaxValueLength:  200,
+		MaxCardinality:  1000,
+		DisallowedKeys:  []string{},
+	}
+}
+
+// ValidateTags validates tags against the given configuration
+func ValidateTags(tags Tags, config TagValidationConfig) error {
+	if len(tags) > config.MaxKeys {
+		return fmt.Errorf("too many tags: %d exceeds maximum of %d", len(tags), config.MaxKeys)
+	}
+
+	for key, value := range tags {
+		// Check key length
+		if len(key) > config.MaxKeyLength {
+			return fmt.Errorf("tag key '%s' exceeds maximum length of %d", key, config.MaxKeyLength)
+		}
+
+		// Check value length
+		if len(value) > config.MaxValueLength {
+			return fmt.Errorf("tag value for key '%s' exceeds maximum length of %d", key, config.MaxValueLength)
+		}
+
+		// Check disallowed keys
+		for _, disallowed := range config.DisallowedKeys {
+			if key == disallowed {
+				return fmt.Errorf("tag key '%s' is not allowed", key)
+			}
+		}
+
+		// Basic validation: keys and values should not be empty
+		if key == "" {
+			return fmt.Errorf("tag keys cannot be empty")
+		}
+	}
+
+	return nil
+}
+
+// BucketType represents the type of histogram bucket distribution
+type BucketType int
+
+const (
+	// BucketTypeExponential creates exponentially-sized buckets
+	BucketTypeExponential BucketType = iota
+	// BucketTypeLinear creates linearly-sized buckets
+	BucketTypeLinear
+	// BucketTypeCustom uses user-provided bucket boundaries
+	BucketTypeCustom
+)
+
+// GenerateLinearBuckets creates linearly spaced bucket boundaries
+func GenerateLinearBuckets(start, width float64, count int) []float64 {
+	if count <= 0 {
+		return nil
+	}
+	
+	buckets := make([]float64, count)
+	for i := 0; i < count; i++ {
+		buckets[i] = start + float64(i)*width
+	}
+	return buckets
+}
+
+// GenerateExponentialBuckets creates exponentially spaced bucket boundaries
+func GenerateExponentialBuckets(start, factor float64, count int) []float64 {
+	if count <= 0 || start <= 0 || factor <= 1 {
+		return nil
+	}
+	
+	buckets := make([]float64, count)
+	current := start
+	for i := 0; i < count; i++ {
+		buckets[i] = current
+		current *= factor
+	}
+	return buckets
+}
+
+// ValidateBuckets ensures bucket boundaries are valid and sorted
+func ValidateBuckets(buckets []float64) error {
+	if len(buckets) == 0 {
+		return nil // Empty buckets are allowed (will use defaults)
+	}
+	
+	// Check for non-positive values
+	for i, bucket := range buckets {
+		if bucket <= 0 {
+			return fmt.Errorf("bucket boundary at index %d must be positive, got %f", i, bucket)
+		}
+	}
+	
+	// Check if sorted in ascending order
+	for i := 1; i < len(buckets); i++ {
+		if buckets[i] <= buckets[i-1] {
+			return fmt.Errorf("bucket boundaries must be in ascending order: bucket[%d]=%f <= bucket[%d]=%f", 
+				i, buckets[i], i-1, buckets[i-1])
+		}
+	}
+	
+	return nil
+}
+
 // Options contains configuration options for a metric
 type Options struct {
 	// Name is the unique identifier for the metric
@@ -34,6 +157,12 @@ type Options struct {
 	Unit string
 	// Tags are key-value pairs for adding dimensions to metrics
 	Tags Tags
+	// Buckets defines custom histogram bucket boundaries (optional, for histograms only)
+	// If not specified, default buckets will be used
+	Buckets []float64
+	// TTL defines how long the metric should be kept in the registry (optional)
+	// If zero, the metric will not expire
+	TTL time.Duration
 }
 
 // Metric is the base interface that all metric types implement
@@ -127,6 +256,10 @@ type Registry interface {
 	Unregister(name string)
 	// Each iterates over all registered metrics
 	Each(fn func(Metric))
+	// ManualCleanup removes all expired metrics immediately
+	ManualCleanup()
+	// Close stops background cleanup and releases resources
+	Close() error
 }
 
 // Reporter is the interface for reporting metrics to a backend system

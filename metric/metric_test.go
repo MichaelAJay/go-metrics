@@ -7,7 +7,7 @@ import (
 )
 
 func TestCounter(t *testing.T) {
-	registry := NewRegistry()
+	registry := NewDefaultRegistry()
 	counter := registry.Counter(Options{
 		Name:        "test_counter",
 		Description: "Test counter",
@@ -24,7 +24,7 @@ func TestCounter(t *testing.T) {
 }
 
 func TestGauge(t *testing.T) {
-	registry := NewRegistry()
+	registry := NewDefaultRegistry()
 	gauge := registry.Gauge(Options{
 		Name:        "test_gauge",
 		Description: "Test gauge",
@@ -42,7 +42,7 @@ func TestGauge(t *testing.T) {
 }
 
 func TestHistogram(t *testing.T) {
-	registry := NewRegistry()
+	registry := NewDefaultRegistry()
 	histogram := registry.Histogram(Options{
 		Name:        "test_histogram",
 		Description: "Test histogram",
@@ -59,7 +59,7 @@ func TestHistogram(t *testing.T) {
 }
 
 func TestTimer(t *testing.T) {
-	registry := NewRegistry()
+	registry := NewDefaultRegistry()
 	timer := registry.Timer(Options{
 		Name:        "test_timer",
 		Description: "Test timer",
@@ -87,7 +87,7 @@ func TestTimer(t *testing.T) {
 }
 
 func TestTagging(t *testing.T) {
-	registry := NewRegistry()
+	registry := NewDefaultRegistry()
 	counter := registry.Counter(Options{
 		Name: "tagged_counter",
 		Tags: Tags{
@@ -128,7 +128,7 @@ func TestTagging(t *testing.T) {
 }
 
 func TestRegistry(t *testing.T) {
-	registry := NewRegistry()
+	registry := NewDefaultRegistry()
 
 	// Create metrics of different types
 	registry.Counter(Options{Name: "counter1"})
@@ -171,7 +171,7 @@ func TestRegistry(t *testing.T) {
 }
 
 func TestContext(t *testing.T) {
-	registry := NewRegistry()
+	registry := NewDefaultRegistry()
 	// Use background context instead of nil
 	parentCtx := context.Background()
 	ctx := NewContext(parentCtx, registry)

@@ -9,7 +9,7 @@ import (
 
 // TestCounterConcurrency tests that counter operations are thread-safe
 func TestCounterConcurrency(t *testing.T) {
-	registry := NewRegistry()
+	registry := NewDefaultRegistry()
 	counter := registry.Counter(Options{
 		Name:        "concurrent_counter",
 		Description: "Test concurrent counter operations",
@@ -44,7 +44,7 @@ func TestCounterConcurrency(t *testing.T) {
 
 // TestGaugeConcurrency tests that gauge operations are thread-safe
 func TestGaugeConcurrency(t *testing.T) {
-	registry := NewRegistry()
+	registry := NewDefaultRegistry()
 	gauge := registry.Gauge(Options{
 		Name:        "concurrent_gauge",
 		Description: "Test concurrent gauge operations",
@@ -89,7 +89,7 @@ func TestGaugeConcurrency(t *testing.T) {
 // TestHistogramConcurrency tests that histogram operations are thread-safe
 // This is the most critical test since it verifies our race condition fix
 func TestHistogramConcurrency(t *testing.T) {
-	registry := NewRegistry()
+	registry := NewDefaultRegistry()
 	histogram := registry.Histogram(Options{
 		Name:        "concurrent_histogram",
 		Description: "Test concurrent histogram operations",
@@ -147,7 +147,7 @@ func TestHistogramConcurrency(t *testing.T) {
 
 // TestTimerConcurrency tests that timer operations are thread-safe
 func TestTimerConcurrency(t *testing.T) {
-	registry := NewRegistry()
+	registry := NewDefaultRegistry()
 	timer := registry.Timer(Options{
 		Name:        "concurrent_timer",
 		Description: "Test concurrent timer operations",
@@ -195,7 +195,7 @@ func TestRaceDetection(t *testing.T) {
 		t.Skip("Skipping race detection test in short mode")
 	}
 
-	registry := NewRegistry()
+	registry := NewDefaultRegistry()
 	
 	// Create metrics
 	counter := registry.Counter(Options{Name: "race_counter"})
@@ -292,7 +292,7 @@ func TestRaceDetection(t *testing.T) {
 
 // BenchmarkHistogramConcurrent benchmarks concurrent histogram operations
 func BenchmarkHistogramConcurrent(b *testing.B) {
-	registry := NewRegistry()
+	registry := NewDefaultRegistry()
 	histogram := registry.Histogram(Options{
 		Name:        "benchmark_histogram",
 		Description: "Benchmark concurrent histogram operations",
@@ -308,7 +308,7 @@ func BenchmarkHistogramConcurrent(b *testing.B) {
 
 // BenchmarkCounterConcurrent benchmarks concurrent counter operations
 func BenchmarkCounterConcurrent(b *testing.B) {
-	registry := NewRegistry()
+	registry := NewDefaultRegistry()
 	counter := registry.Counter(Options{
 		Name:        "benchmark_counter",
 		Description: "Benchmark concurrent counter operations",

@@ -211,5 +211,15 @@ func (m *MockRegistry) Reset() {
 	m.EachCalls = 0
 }
 
+// ManualCleanup performs manual cleanup (no-op for mock)
+func (m *MockRegistry) ManualCleanup() {
+	// No-op for mock registry
+}
+
+// Close closes the registry (no-op for mock)
+func (m *MockRegistry) Close() error {
+	return nil
+}
+
 // Compile-time interface compliance check
 var _ metric.Registry = (*MockRegistry)(nil)

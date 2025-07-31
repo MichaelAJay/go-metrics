@@ -303,7 +303,7 @@ func NewMyService(registry metric.Registry) *MyService {
 }
 
 // In production
-service := NewMyService(metric.NewRegistry())
+service := NewMyService(metric.NewDefaultRegistry())
 
 // In tests
 service := NewMyService(testutil.NewMockRegistry())

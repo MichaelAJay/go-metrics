@@ -23,12 +23,12 @@ import "github.com/MichaelAJay/go-metrics/operational"
 
 ```go
 import (
-    "github.com/MichaelAJay/go-metrics"
+    "github.com/MichaelAJay/go-metrics/metric"
     "github.com/MichaelAJay/go-metrics/operational"
 )
 
 // Create a registry
-registry := metrics.NewRegistry()
+registry := metric.NewDefaultRegistry()
 
 // Create operational metrics
 om := operational.New(registry)
@@ -171,13 +171,13 @@ The operational metrics work seamlessly with any metrics reporter:
 
 ```go
 import (
-    "github.com/MichaelAJay/go-metrics"
+    "github.com/MichaelAJay/go-metrics/metric"
     "github.com/MichaelAJay/go-metrics/operational"
     "github.com/MichaelAJay/go-metrics/metric/prometheus"
 )
 
 // Create registry and operational metrics
-registry := metrics.NewRegistry()
+registry := metric.NewDefaultRegistry()
 om := operational.New(registry)
 
 // Record some metrics

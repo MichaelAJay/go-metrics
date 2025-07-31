@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/MichaelAJay/go-metrics"
+	"github.com/MichaelAJay/go-metrics/metric"
 	"github.com/MichaelAJay/go-metrics/metric/host"
 	"github.com/MichaelAJay/go-metrics/metric/otel"
 	"github.com/MichaelAJay/go-metrics/metric/prometheus"
@@ -16,7 +16,7 @@ import (
 
 func main() {
 	// Create a new registry
-	registry := metrics.NewRegistry()
+	registry := metric.NewDefaultRegistry()
 
 	// Add host information to metrics
 	if err := host.InjectHostInfo(registry); err != nil {
@@ -48,27 +48,27 @@ func main() {
 	http.Handle("/metrics", promReporter.Handler())
 
 	// Create some metrics
-	requestCounter := registry.Counter(metrics.Options{
+	requestCounter := registry.Counter(metric.Options{
 		Name:        "http_requests_total",
 		Description: "Total number of HTTP requests",
 		Unit:        "requests",
-		Tags: metrics.Tags{
+		Tags: metric.Tags{
 			"method": "GET",
 			"path":   "/",
 		},
 	})
 
-	requestLatency := registry.Histogram(metrics.Options{
+	requestLatency := registry.Histogram(metric.Options{
 		Name:        "http_request_duration",
 		Description: "HTTP request latency",
 		Unit:        "milliseconds",
-		Tags: metrics.Tags{
+		Tags: metric.Tags{
 			"method": "GET",
 			"path":   "/",
 		},
 	})
 
-	activeConnections := registry.Gauge(metrics.Options{
+	activeConnections := registry.Gauge(metric.Options{
 		Name:        "active_connections",
 		Description: "Number of active connections",
 		Unit:        "connections",
@@ -104,7 +104,7 @@ func main() {
 	}
 }
 
-func simulateMetrics(requestCounter metrics.Counter, requestLatency metrics.Histogram, activeConnections metrics.Gauge) {
+func simulateMetrics(requestCounter metric.Counter, requestLatency metric.Histogram, activeConnections metric.Gauge) {
 	// Initialize random number generator
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 

@@ -12,10 +12,16 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+// counterState tracks state for delta calculation
+type counterState struct {
+	promCounter prom.Counter
+	lastValue   uint64
+}
+
 // Reporter implements the metric.Reporter interface for Prometheus
 type Reporter struct {
 	registry      *prom.Registry
-	counters      map[string]prom.Counter
+	counters      map[string]*counterState
 	gauges        map[string]prom.Gauge
 	histograms    map[string]prom.Observer
 	mutex         sync.Mutex
@@ -27,7 +33,7 @@ type Reporter struct {
 func NewReporter(opts ...Option) *Reporter {
 	r := &Reporter{
 		registry:      prom.NewRegistry(),
-		counters:      make(map[string]prom.Counter),
+		counters:      make(map[string]*counterState),
 		gauges:        make(map[string]prom.Gauge),
 		histograms:    make(map[string]prom.Observer),
 		defaultLabels: prom.Labels{},
@@ -128,18 +134,30 @@ func (r *Reporter) reportCounter(name string, labelNames, labelValues []string, 
 
 			// Only set the counter if registration was successful
 			if r.registered[key] {
-				r.counters[key] = c.WithLabelValues(labelValues...)
+				r.counters[key] = &counterState{
+					promCounter: c.WithLabelValues(labelValues...),
+					lastValue:   0,
+				}
 			}
 		}
 	}
 
-	// Update the counter value using the safe Value() method
-	if promCounter, exists := r.counters[key]; exists {
+	// Update the counter value using delta calculation
+	if state, exists := r.counters[key]; exists {
 		// Get current value from our metric
-		currentValue := float64(counter.Value())
-		// Prometheus counters can only be incremented, so we need to calculate the difference
-		// For simplicity, we'll set it to the current value (this could be improved with delta tracking)
-		promCounter.Add(currentValue)
+		currentValue := counter.Value()
+		// Calculate delta since last report
+		if currentValue >= state.lastValue {
+			delta := currentValue - state.lastValue
+			if delta > 0 {
+				state.promCounter.Add(float64(delta))
+				state.lastValue = currentValue
+			}
+		} else {
+			// Counter was reset, add the full current value
+			state.promCounter.Add(float64(currentValue))
+			state.lastValue = currentValue
+		}
 	}
 }
 

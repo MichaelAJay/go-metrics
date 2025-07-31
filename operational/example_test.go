@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/MichaelAJay/go-metrics"
+	"github.com/MichaelAJay/go-metrics/metric"
 	"github.com/MichaelAJay/go-metrics/operational"
 )
 
 // ExampleOperationalMetrics demonstrates basic usage of operational metrics
 func ExampleOperationalMetrics() {
 	// Create a metrics registry
-	registry := metrics.NewRegistry()
+	registry := metric.NewDefaultRegistry()
 	
 	// Create operational metrics instance
 	om := operational.New(registry)
@@ -68,7 +68,7 @@ func simulateService(om operational.OperationalMetrics) {
 
 // ExampleOperationalMetrics_patterns demonstrates common usage patterns
 func ExampleOperationalMetrics_patterns() {
-	registry := metrics.NewRegistry()
+	registry := metric.NewDefaultRegistry()
 	om := operational.New(registry)
 	
 	// Pattern 1: Timing operations with defer

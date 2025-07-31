@@ -36,19 +36,19 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/MichaelAJay/go-metrics"
+	"github.com/MichaelAJay/go-metrics/metric"
 	"github.com/MichaelAJay/go-metrics/metric/prometheus"
 )
 
 func main() {
 	// Create a registry
-	registry := metrics.NewRegistry()
+	registry := metric.NewDefaultRegistry()
 
 	// Create a counter
-	requestCounter := registry.Counter(metrics.Options{
+	requestCounter := registry.Counter(metric.Options{
 		Name:        "http_requests_total",
 		Description: "Total number of HTTP requests",
-		Tags: metrics.Tags{
+		Tags: metric.Tags{
 			"method": "GET",
 			"path":   "/api",
 		},
@@ -58,7 +58,7 @@ func main() {
 	requestCounter.Inc()
 
 	// Create a timer
-	requestTimer := registry.Timer(metrics.Options{
+	requestTimer := registry.Timer(metric.Options{
 		Name:        "http_request_duration",
 		Description: "HTTP request duration",
 		Unit:        "milliseconds",
@@ -95,9 +95,9 @@ func main() {
 Counters represent a monotonically increasing numerical value. Typically used for counting events or operations.
 
 ```go
-counter := registry.Counter(metrics.Options{
+counter := registry.Counter(metric.Options{
     Name: "requests_total",
-    Tags: metrics.Tags{"method": "GET"},
+    Tags: metric.Tags{"method": "GET"},
 })
 
 counter.Inc()        // Increment by 1
@@ -109,7 +109,7 @@ counter.Add(42.0)    // Increment by a specific value (value must be positive)
 Gauges represent a single numerical value that can go up and down. Typically used for measuring current states.
 
 ```go
-gauge := registry.Gauge(metrics.Options{
+gauge := registry.Gauge(metric.Options{
     Name: "memory_usage_bytes",
 })
 
@@ -124,7 +124,7 @@ gauge.Add(-10.0)     // Add value (can be negative)
 Histograms track the distribution of a set of values. Useful for measuring things like response sizes.
 
 ```go
-histogram := registry.Histogram(metrics.Options{
+histogram := registry.Histogram(metric.Options{
     Name: "request_size_bytes",
 })
 
@@ -136,7 +136,7 @@ histogram.Observe(42.0)  // Record a value
 Timers are specialized histograms for measuring durations. They provide convenience methods for timing.
 
 ```go
-timer := registry.Timer(metrics.Options{
+timer := registry.Timer(metric.Options{
     Name: "request_duration",
 })
 
@@ -159,9 +159,9 @@ duration := timer.Time(func() {
 All metrics support tags (or labels) to add dimensions to your metrics:
 
 ```go
-counter := registry.Counter(metrics.Options{
+counter := registry.Counter(metric.Options{
     Name: "http_requests_total",
-    Tags: metrics.Tags{
+    Tags: metric.Tags{
         "method": "GET",
         "path": "/api",
         "status": "200",
@@ -169,7 +169,7 @@ counter := registry.Counter(metrics.Options{
 })
 
 // Adding tags to an existing metric creates a new metric with the combined tags
-counterWithRegion := counter.With(metrics.Tags{
+counterWithRegion := counter.With(metric.Tags{
     "region": "us-west",
 })
 ```
@@ -241,7 +241,7 @@ For convenience, a global registry is provided:
 
 ```go
 // Using the global registry
-counter := metrics.GetCounter(metrics.Options{
+counter := metrics.GetCounter(metric.Options{
     Name: "global_counter",
 })
 counter.Inc()

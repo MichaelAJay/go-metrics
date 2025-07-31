@@ -99,9 +99,6 @@ func WithAttributes(attrs map[string]string) Option {
 
 // Report implements the metric.Reporter interface
 func (r *Reporter) Report(registry metricpkg.Registry) error {
-	r.mutex.RLock()
-	defer r.mutex.RUnlock()
-
 	// Process each metric in the registry
 	registry.Each(func(m metricpkg.Metric) {
 		name := m.Name()

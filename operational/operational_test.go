@@ -4,11 +4,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MichaelAJay/go-metrics"
+	"github.com/MichaelAJay/go-metrics/metric"
 )
 
 func TestNew(t *testing.T) {
-	registry := metrics.NewRegistry()
+	registry := metric.NewDefaultRegistry()
 	om := New(registry)
 	
 	if om == nil {
@@ -20,7 +20,7 @@ func TestNew(t *testing.T) {
 }
 
 func TestRecordError(t *testing.T) {
-	registry := metrics.NewRegistry()
+	registry := metric.NewDefaultRegistry()
 	om := New(registry)
 	
 	// Record some errors
@@ -30,9 +30,9 @@ func TestRecordError(t *testing.T) {
 	
 	// Verify counters were created and incremented
 	var errorCount uint64
-	registry.Each(func(m metrics.Metric) {
-		if m.Type() == metrics.TypeCounter {
-			if counter, ok := m.(metrics.Counter); ok {
+	registry.Each(func(m metric.Metric) {
+		if m.Type() == metric.TypeCounter {
+			if counter, ok := m.(metric.Counter); ok {
 				errorCount += counter.Value()
 			}
 		}
@@ -44,7 +44,7 @@ func TestRecordError(t *testing.T) {
 }
 
 func TestRecordOperation(t *testing.T) {
-	registry := metrics.NewRegistry()
+	registry := metric.NewDefaultRegistry()
 	om := New(registry)
 	
 	// Record some operations
@@ -57,14 +57,14 @@ func TestRecordOperation(t *testing.T) {
 	var counterCount, timerCount int
 	var totalOperations uint64
 	
-	registry.Each(func(m metrics.Metric) {
+	registry.Each(func(m metric.Metric) {
 		switch m.Type() {
-		case metrics.TypeCounter:
+		case metric.TypeCounter:
 			counterCount++
-			if counter, ok := m.(metrics.Counter); ok {
+			if counter, ok := m.(metric.Counter); ok {
 				totalOperations += counter.Value()
 			}
-		case metrics.TypeTimer:
+		case metric.TypeTimer:
 			timerCount++
 		}
 	})
@@ -86,7 +86,7 @@ func TestRecordOperation(t *testing.T) {
 }
 
 func TestMetricCaching(t *testing.T) {
-	registry := metrics.NewRegistry()
+	registry := metric.NewDefaultRegistry()
 	om := New(registry)
 	
 	// Record the same error multiple times
@@ -98,10 +98,10 @@ func TestMetricCaching(t *testing.T) {
 	var counterCount int
 	var totalCount uint64
 	
-	registry.Each(func(m metrics.Metric) {
-		if m.Type() == metrics.TypeCounter {
+	registry.Each(func(m metric.Metric) {
+		if m.Type() == metric.TypeCounter {
 			counterCount++
-			if counter, ok := m.(metrics.Counter); ok {
+			if counter, ok := m.(metric.Counter); ok {
 				totalCount += counter.Value()
 			}
 		}
@@ -117,7 +117,7 @@ func TestMetricCaching(t *testing.T) {
 }
 
 func TestConcurrentAccess(t *testing.T) {
-	registry := metrics.NewRegistry()
+	registry := metric.NewDefaultRegistry()
 	om := New(registry)
 	
 	// Test concurrent access to ensure thread safety
@@ -147,9 +147,9 @@ func TestConcurrentAccess(t *testing.T) {
 	// Verify all operations were recorded
 	var errorCount, operationCount uint64
 	
-	registry.Each(func(m metrics.Metric) {
-		if m.Type() == metrics.TypeCounter {
-			if counter, ok := m.(metrics.Counter); ok {
+	registry.Each(func(m metric.Metric) {
+		if m.Type() == metric.TypeCounter {
+			if counter, ok := m.(metric.Counter); ok {
 				tags := counter.Tags()
 				if errorType, exists := tags["error_type"]; exists && errorType == "test_error" {
 					errorCount += counter.Value()
@@ -172,7 +172,7 @@ func TestConcurrentAccess(t *testing.T) {
 }
 
 func TestMetricTags(t *testing.T) {
-	registry := metrics.NewRegistry()
+	registry := metric.NewDefaultRegistry()
 	om := New(registry)
 	
 	// Record operations with different parameters
@@ -180,10 +180,10 @@ func TestMetricTags(t *testing.T) {
 	om.RecordOperation("TestOp", "success", 100*time.Millisecond)
 	
 	// Verify tags are set correctly
-	registry.Each(func(m metrics.Metric) {
+	registry.Each(func(m metric.Metric) {
 		tags := m.Tags()
 		
-		if m.Type() == metrics.TypeCounter {
+		if m.Type() == metric.TypeCounter {
 			// Check that operation tag exists
 			if operation, exists := tags["operation"]; !exists || operation != "TestOp" {
 				t.Errorf("Expected operation tag 'TestOp', got '%s'", operation)
@@ -208,7 +208,7 @@ func TestMetricTags(t *testing.T) {
 			}
 		}
 		
-		if m.Type() == metrics.TypeTimer {
+		if m.Type() == metric.TypeTimer {
 			// Check timer tags
 			if operation, exists := tags["operation"]; !exists || operation != "TestOp" {
 				t.Errorf("Expected timer operation tag 'TestOp', got '%s'", operation)
@@ -218,7 +218,7 @@ func TestMetricTags(t *testing.T) {
 }
 
 func BenchmarkRecordError(b *testing.B) {
-	registry := metrics.NewRegistry()
+	registry := metric.NewDefaultRegistry()
 	om := New(registry)
 	
 	b.ResetTimer()
@@ -229,7 +229,7 @@ func BenchmarkRecordError(b *testing.B) {
 }
 
 func BenchmarkRecordOperation(b *testing.B) {
-	registry := metrics.NewRegistry()
+	registry := metric.NewDefaultRegistry()
 	om := New(registry)
 	
 	duration := 100 * time.Millisecond
@@ -242,7 +242,7 @@ func BenchmarkRecordOperation(b *testing.B) {
 }
 
 func BenchmarkConcurrentRecordError(b *testing.B) {
-	registry := metrics.NewRegistry()
+	registry := metric.NewDefaultRegistry()
 	om := New(registry)
 	
 	b.ResetTimer()

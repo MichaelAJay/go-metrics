@@ -1,7 +1,9 @@
 package metric
 
 import (
+	"fmt"
 	"maps"
+	"sort"
 	"sync/atomic"
 	"time"
 )
@@ -154,14 +156,28 @@ func (g *gaugeImpl) Value() int64 {
 // histogramImpl implements the Histogram interface
 type histogramImpl struct {
 	baseMetric
-	count   uint64
-	sum     uint64
-	min     uint64
-	max     uint64
-	buckets []uint64 // Simple fixed bucket implementation
+	count         uint64
+	sum           uint64
+	min           uint64
+	max           uint64
+	buckets       []uint64  // Bucket counts
+	boundaries    []float64 // Bucket boundaries
 }
 
 func newHistogram(opts Options) Histogram {
+	// Use provided buckets or default ones
+	boundaries := opts.Buckets
+	if len(boundaries) == 0 {
+		// Default buckets: exponential buckets from 0.001 to 10000
+		boundaries = []float64{0.001, 0.01, 0.1, 1, 10, 100, 1000, 10000}
+	}
+	
+	// Validate bucket boundaries
+	if err := ValidateBuckets(boundaries); err != nil {
+		// In production, you might want to log this and use default buckets
+		panic(fmt.Sprintf("invalid histogram buckets: %v", err))
+	}
+
 	return &histogramImpl{
 		baseMetric: baseMetric{
 			name:        opts.Name,
@@ -170,29 +186,42 @@ func newHistogram(opts Options) Histogram {
 			metricType:  TypeHistogram,
 			tags:        opts.Tags,
 		},
-		// Simple default buckets - would be configurable in a full implementation
-		buckets: make([]uint64, 10),
+		boundaries: boundaries,
+		buckets:    make([]uint64, len(boundaries)+1), // +1 for the +Inf bucket
 	}
 }
 
 func (h *histogramImpl) Observe(value float64) {
-	// This is a simplified implementation; a production version would use more efficient
-	// approaches for calculating histograms and handling concurrent updates
-
 	// Convert to uint64 for atomic operations
 	v := uint64(value)
 
 	atomic.AddUint64(&h.count, 1)
 	atomic.AddUint64(&h.sum, v)
 
-	// Simplified bucket logic - a real implementation would use
-	// proper bucketing based on configurable boundaries
-	bucket := min(9, int(value/10))
-	atomic.AddUint64(&h.buckets[bucket], 1)
+	// Find the appropriate bucket using binary search for O(log n) performance
+	bucketIndex := h.findBucket(value)
+	atomic.AddUint64(&h.buckets[bucketIndex], 1)
 
 	// Update min/max using compare-and-swap to avoid race conditions
 	h.updateMin(v)
 	h.updateMax(v)
+}
+
+// findBucket uses binary search to find the appropriate bucket for the given value
+func (h *histogramImpl) findBucket(value float64) int {
+	// Use binary search to find the first boundary that is >= value
+	// sort.SearchFloat64s returns the index where value would be inserted
+	index := sort.SearchFloat64s(h.boundaries, value)
+	
+	// If value is exactly equal to a boundary, we want that bucket
+	// If value is between boundaries, we want the next bucket
+	// If value is larger than all boundaries, we want the +Inf bucket
+	if index < len(h.boundaries) && value <= h.boundaries[index] {
+		return index
+	}
+	
+	// Value is larger than the boundary at index, so use the +Inf bucket
+	return len(h.boundaries)
 }
 
 // updateMin safely updates the minimum value using compare-and-swap

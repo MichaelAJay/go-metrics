@@ -37,7 +37,7 @@ func TestReporterImplementsInterface(t *testing.T) {
 
 func TestReportWithMetrics(t *testing.T) {
 	// Create a registry with some metrics
-	registry := metric.NewRegistry()
+	registry := metric.NewDefaultRegistry()
 
 	// Add some metrics
 	counter := registry.Counter(metric.Options{
