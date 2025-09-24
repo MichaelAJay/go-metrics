@@ -76,13 +76,19 @@ func RecordOperation(name, status string, duration time.Duration) {
 
 Target the closest public APIs that exercise `copyTags()` and tag allocation:
 
-1. **`.With()` method benchmarks** (direct `copyTags()` exercisers):
+1. **`.With()` method benchmarks** (direct `copyTags()` exercisers) - ✅ **IMPLEMENTED**:
    ```go
-   func BenchmarkCounterWith(b *testing.B)
-   func BenchmarkGaugeWith(b *testing.B)
-   func BenchmarkHistogramWith(b *testing.B)
-   func BenchmarkTimerWith(b *testing.B)
+   func BenchmarkCounterWith(b *testing.B)     // 416 B/op, 3 allocs/op
+   func BenchmarkGaugeWith(b *testing.B)       // 416 B/op, 3 allocs/op
+   func BenchmarkHistogramWith(b *testing.B)   // 576 B/op, 4 allocs/op
+   func BenchmarkTimerWith(b *testing.B)       // 592 B/op, 5 allocs/op
    ```
+
+   **Baseline Results** (from `metric/with_benchmark_test.go`):
+   - Counter/Gauge: 416 bytes and 3 allocations per With() call
+   - Histogram: 576 bytes and 4 allocations (includes bucket allocation)
+   - Timer: 592 bytes and 5 allocations (highest overhead due to histogram complexity)
+   - All benchmarks directly target `copyTags()` allocation source per metrics.go:42-58
 
 2. **`.Tags()` method benchmarks** (defensive copy allocations):
    ```go
@@ -150,6 +156,106 @@ benchcmp before.txt after.txt
 - **>80% reduction** in `BytesPerOp` for tag-heavy scenarios
 - **>70% reduction** in operational package allocation overhead
 - **Zero functional regressions** in existing test suite
+
+## Post-Mortem: Benchmarking Methodology Issue
+
+### Issue Discovery
+
+During benchmark implementation, we discovered that the "150+ allocations per operation" problem was primarily a **benchmarking artifact** rather than a production performance issue.
+
+**Root Cause Analysis:**
+1. **Operational package uses metric caching** (operational.go:84-90, 122-127, 159-166)
+2. **High allocations occur only during metric initialization**, not steady-state operations
+3. **Benchmarks were measuring cold-start scenarios** instead of realistic production usage
+
+**Evidence from operational_benchmark_test.go:**
+
+```
+Cold Start (unrealistic):
+- RecordError: 1096 B/op, 18 allocs/op
+- RecordOperation: 1816 B/op, 29 allocs/op
+
+Cached Metrics (production reality):
+- RecordError: 96 B/op, 4 allocs/op
+- RecordOperation: 88 B/op, 5 allocs/op
+```
+
+**Conclusion:** The tag map pooling optimization would provide minimal production benefit since expensive allocations only occur during metric initialization, not during steady-state operation.
+
+### Corrected Benchmarking Methodology
+
+**Problem:** Most Go benchmarks inadvertently measure initialization overhead by creating fresh objects in each iteration.
+
+**Solution:** Pre-warm caches and separate initialization from measurement:
+
+#### Before (Incorrect - measures initialization):
+```go
+func BenchmarkOperationalMetrics(b *testing.B) {
+    registry := metric.NewDefaultRegistry()
+
+    for i := 0; i < b.N; i++ {
+        om := New(registry) // ❌ Fresh instance each iteration
+        om.RecordError("auth", "validation_error", "invalid_token")
+    }
+}
+```
+
+#### After (Correct - measures steady-state):
+```go
+func BenchmarkOperationalMetrics(b *testing.B) {
+    registry := metric.NewDefaultRegistry()
+    om := New(registry)
+
+    // Pre-warm cache (excluded from timing)
+    om.RecordError("auth", "validation_error", "invalid_token")
+
+    b.ResetTimer() // ✅ Start timing after initialization
+    b.ReportAllocs()
+
+    for i := 0; i < b.N; i++ {
+        om.RecordError("auth", "validation_error", "invalid_token")
+    }
+}
+```
+
+#### For Varied Workloads (Pre-warm all combinations):
+```go
+func BenchmarkVariedOperationalMetrics(b *testing.B) {
+    registry := metric.NewDefaultRegistry()
+    om := New(registry)
+
+    operations := []string{"auth", "query", "cache"}
+    statuses := []string{"success", "error", "timeout"}
+
+    // Pre-warm cache for all combinations
+    for _, op := range operations {
+        for _, status := range statuses {
+            om.RecordOperation(op, status, time.Millisecond)
+        }
+    }
+
+    b.ResetTimer() // Start timing after cache warm-up
+    b.ReportAllocs()
+
+    for i := 0; i < b.N; i++ {
+        op := operations[i%len(operations)]
+        status := statuses[i%len(statuses)]
+        om.RecordOperation(op, status, time.Millisecond)
+    }
+}
+```
+
+### Key Benchmarking Principles
+
+1. **Separate initialization from measurement** using `b.ResetTimer()`
+2. **Pre-warm caches** to reflect production usage patterns
+3. **Use realistic workload patterns** rather than worst-case scenarios
+4. **Measure steady-state performance**, not cold-start overhead
+5. **Validate benchmarks against production behavior** before optimizing
+
+### Recommendation
+
+**Abandon the tag map pooling optimization.** The operational package's existing caching strategy already solves the allocation problem for production workloads. Focus optimization efforts on areas with genuine steady-state performance issues.
 
 ## Verification
 
