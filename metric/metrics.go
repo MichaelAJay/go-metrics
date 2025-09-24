@@ -4,9 +4,32 @@ import (
 	"fmt"
 	"maps"
 	"sort"
+	"sync"
 	"sync/atomic"
 	"time"
 )
+
+// Internal tag map pool to reduce allocations
+var tagMapPool = sync.Pool{
+	New: func() interface{} {
+		return make(map[string]string, 8) // Reasonable default capacity
+	},
+}
+
+// warmTagMapPool pre-populates the pool with maps to avoid allocation overhead during benchmarks
+func warmTagMapPool(count int) {
+	for i := 0; i < count; i++ {
+		tagMapPool.Put(make(map[string]string, 8))
+	}
+}
+
+// clearMap safely clears a tag map and returns it for reuse
+func clearMap(m map[string]string) map[string]string {
+	for k := range m {
+		delete(m, k)
+	}
+	return m
+}
 
 // baseMetric implements the common Metric functionality
 type baseMetric struct {
@@ -46,14 +69,19 @@ func copyTags(originalTags, newTags Tags) Tags {
 		return Tags{}
 	}
 
-	// Make a copy with capacity for both sets of tags
-	tagsCopy := make(Tags, len(originalTags)+len(newTags))
+	// Get a map from the pool for temporary use
+	pooledMap := tagMapPool.Get().(map[string]string)
+	defer tagMapPool.Put(clearMap(pooledMap))
 
-	// Copy original tags
-	maps.Copy(tagsCopy, originalTags)
+	// Copy original tags to pooled map
+	maps.Copy(pooledMap, originalTags)
 
 	// Add new tags, overwriting if keys overlap
-	maps.Copy(tagsCopy, newTags)
+	maps.Copy(pooledMap, newTags)
+
+	// Create final map with exact size needed
+	tagsCopy := make(Tags, len(pooledMap))
+	maps.Copy(tagsCopy, pooledMap)
 
 	return tagsCopy
 }
