@@ -409,3 +409,49 @@ func (b *MetricsBuilder) RecordBusinessMetric(metricType, category string, value
 		}
 	}
 }
+
+// Above should be deleted
+func (b *MetricsBuilder) RecordWithTags(operation, status string, duration time.Duration, keyValuePairs ...string) {
+	if len(keyValuePairs)%2 != 0 {
+		b.om.RecordOperation(operation, status, duration)
+		return
+	}
+
+	// Record base operation
+	b.om.RecordOperation(operation, status, duration)
+
+	// Record contextual metrics directly from variadic args - NO MAP NEEDED!
+	for i := 0; i < len(keyValuePairs); i += 2 {
+		key := keyValuePairs[i]
+		value := keyValuePairs[i+1]
+		contextualOperation := fmt.Sprintf("%s_%s", operation, key)
+		b.om.RecordOperation(contextualOperation, value, duration)
+	}
+}
+
+func (b *MetricsBuilder) RecordSecurityEventWithTags(eventType, action string, keyValuePairs ...string) {
+	if len(keyValuePairs)%2 != 0 {
+		// Fallback to basic recording
+		operation := fmt.Sprintf("security_%s", eventType)
+		b.om.RecordOperation(operation, action, 0)
+		return
+	}
+
+	// Get pooled map
+	tags := operationalTagPool.Get().(map[string]string)
+	defer operationalTagPool.Put(clearOperationalTags(tags))
+
+	operation := fmt.Sprintf("security_%s", eventType)
+	b.om.RecordOperation(operation, action, 0)
+
+	// Populate from variadic args
+	for i := 0; i < len(keyValuePairs); i += 2 {
+		tags[keyValuePairs[i]] = keyValuePairs[i+1]
+	}
+
+	// Record contextual security metrics using pooled map
+	for key, value := range tags {
+		contextualOperation := fmt.Sprintf("security_%s_%s", eventType, key)
+		b.om.RecordOperation(contextualOperation, value, 0)
+	}
+}
